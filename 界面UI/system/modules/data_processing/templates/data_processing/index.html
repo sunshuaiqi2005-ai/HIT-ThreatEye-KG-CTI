@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+
+{% block title %}数据处理{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-header">
+        <h2>数据处理</h2>
+        <div class="header-buttons">
+            <a href="/data_processing/corpus" class="btn btn-outline-primary">
+                <i class="bi bi-file-earmark-text"></i> 语料生成
+            </a>
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="bi bi-house"></i> 返回主页
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- 左侧操作面板 -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#upload-tab">文件上传</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#batch-tab">批量处理</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- 文件上传表单 -->
+                        <div class="tab-pane fade show active" id="upload-tab">
+                            <div class="upload-area" id="dropZone">
+                                <i class="bi bi-cloud-upload"></i>
+                                <h5>拖拽文件到此处或点击上传</h5>
+                                <p class="text-muted">支持 .pdf, .html 文件</p>
+                                <input type="file" id="fileInput" style="display: none" accept=".pdf,.html">
+                            </div>
+                            <div class="form-group">
+                                <label for="fileInfo">文件信息</label>
+                                <div class="preview-area" id="fileInfo">
+                                    <div class="text-center text-muted">
+                                        <i class="bi bi-file-earmark"></i>
+                                        <p class="mb-0">未选择文件</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="instructionFile">提示词文件</label>
+                                <input type="file" class="form-control" id="instructionFile" accept=".txt">
+                                <small class="form-text text-muted">
+                                    请上传包含提示词模板的文本文件，用于指导大模型进行实体和关系提取。
+                                    <br>提示词模板应包含实体类型、关系类型和输出格式说明。
+                                </small>
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="outputPath">输出路径</label>
+                                <input type="text" class="form-control" id="outputPath" placeholder="例如：output/" value="output/">
+                            </div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="processFile()">开始处理</button>
+                        </div>
+                        
+                        <!-- 批量处理表单 -->
+                        <div class="tab-pane fade" id="batch-tab">
+                            <div class="form-group">
+                                <label for="directoryPath">目录路径</label>
+                                <input type="text" class="form-control" id="directoryPath" placeholder="请输入要处理的目录路径">
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="instructionFile">提示词文件</label>
+                                <input type="file" class="form-control" id="instructionFile" accept=".txt">
+                                <small class="form-text text-muted">
+                                    请上传包含提示词模板的文本文件，用于指导大模型进行实体和关系提取。
+                                    <br>提示词模板应包含实体类型、关系类型和输出格式说明。
+                                </small>
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="outputPath">输出路径</label>
+                                <input type="text" class="form-control" id="outputPath" placeholder="例如：output/" value="output/">
+                            </div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="processDirectory()">开始批量处理</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 处理进度 -->
+            <div class="card">
+                <div class="card-header">处理进度</div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="progressText">等待处理...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧结果显示 -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">处理结果</h5>
+                </div>
+                <div class="card-body">
+                    <div style="display:flex;align-items:center;justify-content:space-between;">
+                        <span></span>
+                        <button class="btn btn-sm btn-outline-primary" id="exportLLMBtn" style="display:none;">
+                            <i class="bi bi-download"></i> 导出为TXT
+                        </button>
+                    </div>
+                    <div class="result-content" id="llmRawOutput" style="background:#fffbe6;color:#333;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .upload-area {
+        border: 2px dashed #ddd;
+        border-radius: 4px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    .upload-area i {
+        font-size: 2rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+    }
+    .preview-area {
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 15px;
+        min-height: 100px;
+        background-color: #f8f9fa;
+    }
+    .result-content {
+        max-height: 600px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        font-family: monospace;
+        padding: 10px;
+        background-color: #f8f9fa;
+        border-radius: 4px;
+    }
+    .error-message {
+        color: #dc3545;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    .success-message {
+        color: #28a745;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    .llm-chunk-box {
+        border: 1px solid #ffe58f;
+        background: #fffbe6;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        box-shadow: 0 1px 2px rgba(255,229,143,0.08);
+    }
+    .llm-chunk-box pre {
+        margin: 0;
+        font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace;
+        font-size: 15px;
+        background: none;
+        color: #333;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 文件上传相关
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    
+    // 点击上传区域触发文件选择
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    // 处理文件拖放
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#0d6efd';
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.style.borderColor = '#ddd';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = '#ddd';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+        }
+    });
+
+    // 处理文件选择
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        }
+    });
+    
+    // 处理文件信息
+    function handleFile(file) {
+        const fileSize = formatFileSize(file.size);
+        const fileType = file.type || '未知类型';
+        const fileName = file.name;
+        
+        fileInfo.innerHTML = `
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-file-earmark-text fs-4 me-2"></i>
+                <div>
+                    <h6 class="mb-1">${fileName}</h6>
+                    <small class="text-muted">
+                        大小: ${fileSize}<br>
+                        类型: ${fileType}
+                    </small>
+                </div>
+            </div>
+        `;
+    }
+
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // 处理单个文件
+    async function processFile() {
+        updateProgress(0, '开始处理文件...');
+        const file = fileInput.files[0];
+        const outputPath = document.getElementById('outputPath').value;
+        const instructionFile = document.getElementById('instructionFile') ? document.getElementById('instructionFile').files[0] : null;
+        const formData = new FormData();
+        formData.append('file', file);
+        if (instructionFile) {
+            formData.append('instruction_file', instructionFile);
+        }
+        formData.append('output_path', outputPath);
+        try {
+            const response = await axios.post('/data_processing/api/process-file', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            console.log('后端返回：', response.data);
+            const llmRawOutputDiv = document.getElementById('llmRawOutput');
+            const exportBtn = document.getElementById('exportLLMBtn');
+            if (response.data.llm_raw_output && response.data.llm_raw_output.trim() !== "") {
+                llmRawOutputDiv.innerHTML = `<pre>${response.data.llm_raw_output}</pre>`;
+                exportBtn.style.display = '';
+                exportBtn.onclick = function() {
+                    exportLLMRawToTxt(response.data.llm_raw_output);
+                };
+            } else {
+                llmRawOutputDiv.innerHTML = '<span style="color:#888;">无原始输出</span>';
+                exportBtn.style.display = 'none';
+            }
+            updateProgress(100, '处理完成');
+        } catch (error) {
+            document.getElementById('llmRawOutput').innerHTML = '<span style="color:#888;">无原始输出</span>';
+            document.getElementById('exportLLMBtn').style.display = 'none';
+            updateProgress(0, '处理失败');
+        }
+    }
+
+    // 处理目录
+    async function processDirectory() {
+        const dirPath = document.getElementById('directoryPath').value;
+        const instructionFile = document.getElementById('instructionFile').files[0];
+        const outputPath = document.getElementById('outputPath').value;
+
+        if (!dirPath) {
+            alert('请输入目录路径');
+            return;
+        }
+
+        if (!outputPath) {
+            alert('请输入输出路径');
+            return;
+        }
+
+        try {
+            updateProgress(0, '开始批量处理...');
+
+            const formData = new FormData();
+            formData.append('directory', dirPath);
+            if (instructionFile) {
+                formData.append('instruction_file', instructionFile);
+            }
+            formData.append('output_path', outputPath);
+
+            const response = await axios.post('/data_processing/api/process-directory', formData, {
+                headers: {
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+
+            // 显示处理结果
+            const processOutput = document.getElementById('processOutput');
+            if (response.data.results && response.data.results.length > 0) {
+                processOutput.innerHTML = response.data.results.map(result => `
+                    <div class="success-message">
+                        <strong>文件：</strong> ${result.filename}<br>
+                        <strong>处理结果：</strong><br>
+                        <pre>${result.content}</pre>
+                    </div>
+                `).join('');
+            } else {
+                processOutput.innerHTML = '<div class="error-message">未找到处理结果</div>';
+            }
+
+            // 显示错误信息
+            const errorOutput = document.getElementById('errorOutput');
+            if (response.data.errors && response.data.errors.length > 0) {
+                errorOutput.innerHTML = response.data.errors.map(error => `
+                    <div class="error-message">
+                        <strong>错误：</strong> ${error.message}<br>
+                        <strong>详情：</strong> ${error.details || '无'}
+                    </div>
+                `).join('');
+            } else {
+                errorOutput.innerHTML = '<div class="success-message">没有错误信息</div>';
+            }
+
+            updateProgress(100, '处理完成');
+
+        } catch (error) {
+            console.error('处理失败:', error);
+            const errorMessage = error.response?.data?.error || error.message;
+            document.getElementById('processOutput').innerHTML = `<div class="error-message">处理失败: ${errorMessage}</div>`;
+            document.getElementById('errorOutput').innerHTML = `<div class="error-message">${errorMessage}</div>`;
+            document.getElementById('llmRawOutput').innerHTML = '<span style="color:#888;">无原始输出</span>';
+            document.getElementById('exportLLMBtn').style.display = 'none';
+            updateProgress(0, '处理失败');
+        }
+    }
+
+    // 更新进度
+    function updateProgress(percent, text) {
+        const progressBar = document.querySelector('.progress-bar');
+        const progressText = document.getElementById('progressText');
+        
+        progressBar.style.width = percent + '%';
+        progressText.textContent = text;
+    }
+
+    // 美化 LLM 原始输出的样式
+    const style = document.createElement('style');
+    style.innerHTML = `
+    .llm-chunk-box {
+        border: 1px solid #ffe58f;
+        background: #fffbe6;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        box-shadow: 0 1px 2px rgba(255,229,143,0.08);
+    }
+    .llm-chunk-box pre {
+        margin: 0;
+        font-family: 'JetBrains Mono', 'Fira Mono', 'Consolas', monospace;
+        font-size: 15px;
+        background: none;
+        color: #333;
+    }
+    `;
+    document.head.appendChild(style);
+
+    // 导出 LLM 原始输出为TXT文件
+    function exportLLMRawToTxt(llmRawStr) {
+        const blob = new Blob([llmRawStr], {type: 'text/plain'});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'llm_raw_output.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 0);
+    }
+
+    // 防止XSS，转义HTML
+    function escapeHtml(str) {
+        return str.replace(/[&<>"']/g, function(tag) {
+            const charsToReplace = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#39;'
+            };
+            return charsToReplace[tag] || tag;
+        });
+    }
+</script>
+{% endblock %} 

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>威胁慧眼-知识驱动的智能威胁情报构建和分析平台</title>
+    <link href="https://cdn.bootcdn.net/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        .btn-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .status-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: #f8f9fa;
+            padding: 10px;
+            border-top: 1px solid #dee2e6;
+        }
+        .title-text {
+            background: linear-gradient(45deg, #2c5282, #4299e1);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <!-- 标题 -->
+        <h1 class="text-4xl font-bold text-center mb-4 title-text">
+            威胁慧眼
+        </h1>
+        <h2 class="text-xl text-center text-gray-600 mb-12">
+            知识驱动的智能威胁情报构建和分析平台
+        </h2>
+
+        <!-- 功能按钮区域 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <!-- 威胁情报问答 -->
+            <button onclick="openModule('qa')" 
+                    class="btn-hover bg-white p-6 rounded-lg shadow-md transition-all duration-300">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">威胁情报问答</h2>
+                <p class="text-gray-600">基于垂直领域的智能问答系统</p>
+            </button>
+
+            <!-- 知识图谱构建与分析 -->
+            <button onclick="openModule('kg')" 
+                    class="btn-hover bg-white p-6 rounded-lg shadow-md transition-all duration-300">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">知识图谱构建与分析</h2>
+                <p class="text-gray-600">威胁情报知识图谱可视化与分析</p>
+            </button>
+
+            <!-- 防御规则生成 -->
+            <button onclick="openModule('rule')" 
+                    class="btn-hover bg-white p-6 rounded-lg shadow-md transition-all duration-300">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">防御规则生成</h2>
+                <p class="text-gray-600">自动生成安全防御规则</p>
+            </button>
+
+            <!-- 数据处理 -->
+            <button onclick="openModule('data')" 
+                    class="btn-hover bg-white p-6 rounded-lg shadow-md transition-all duration-300">
+                <h2 class="text-xl font-semibold text-gray-800 mb-2">数据处理</h2>
+                <p class="text-gray-600">威胁情报数据预处理与分析</p>
+            </button>
+        </div>
+    </div>
+
+    <!-- 状态栏 -->
+    <div id="statusBar" class="status-bar text-center text-gray-600">
+        系统就绪
+    </div>
+
+    <script>
+        function openModule(module) {
+            const statusBar = document.getElementById('statusBar');
+            const moduleNames = {
+                'qa': '威胁情报问答',
+                'kg': '知识图谱构建与分析',
+                'rule': '防御规则生成',
+                'data': '数据处理'
+            };
+            
+            statusBar.textContent = `正在打开${moduleNames[module]}模块...`;
+            
+            // 根据模块类型进行跳转
+            if (module === 'qa') {
+                window.location.href = 'http://127.0.0.1:8080/';
+            } else if (module === 'kg') {
+                window.location.href = '/kg_analysis/';
+            } else if (module === 'data') {
+                window.location.href = '/data_processing/';
+            } else {
+                console.log(`打开${moduleNames[module]}模块`);
+            }
+        }
+    </script>
+</body>
+</html> 

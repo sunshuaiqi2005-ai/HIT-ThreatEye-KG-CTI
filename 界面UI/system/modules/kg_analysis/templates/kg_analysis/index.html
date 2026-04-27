@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱分析</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.css" rel="stylesheet">
+    <style>
+        .container-fluid {
+            padding: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        #graph-container {
+            height: 600px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .alert {
+            margin-top: 10px;
+        }
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .header-buttons {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .header-buttons .btn {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 8px 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .header-buttons .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .header-buttons .btn i {
+            font-size: 1.1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="page-header">
+            <h2>知识图谱分析</h2>
+            <div class="header-buttons">
+                <a href="/" class="btn btn-outline-secondary">
+                    <i class="bi bi-house-fill"></i>
+                    返回主页
+                </a>
+                <a href="/kg_analysis/manage" class="btn btn-primary">
+                    <i class="bi bi-gear-fill"></i>
+                    图谱管理
+                </a>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- 左侧操作面板 -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="entityInput">实体名称</label>
+                            <input type="text" class="form-control" id="entityInput" placeholder="请输入实体名称">
+                        </div>
+                        <div class="action-buttons">
+                            <button class="btn btn-primary me-2" onclick="queryActivities()">查询活动</button>
+                            <button class="btn btn-success me-2" onclick="queryAttackChain()">查询攻击链</button>
+                            <button class="btn btn-info me-2" onclick="queryAttackerNetwork()">查询攻击者网络</button>
+                            <button class="btn btn-warning" onclick="queryGeoMap()">查询地理分布</button>
+                        </div>
+            </div>
+        </div>
+
+                <!-- 输出结果 -->
+                <div class="card">
+                    <div class="card-header">分析结果</div>
+                    <div class="card-body">
+                        <pre id="output" style="white-space: pre-wrap;"></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 右侧图谱显示 -->
+            <div class="col-md-8">
+            <div id="graph-container"></div>
+        </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.2/dist/vis-network.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script>
+        // 确保在DOM加载完成后再初始化图谱
+        document.addEventListener('DOMContentLoaded', function() {
+            // 检查vis是否已加载
+            if (typeof vis === 'undefined') {
+                console.error('vis-network库未加载');
+                document.getElementById('output').textContent = '错误：vis-network库加载失败，请检查网络连接';
+                return;
+            }
+
+            // 初始化图谱
+            const container = document.getElementById('graph-container');
+            const options = {
+                nodes: {
+                    shape: 'dot',
+                    size: 16,
+                    font: {
+                        size: 12,
+                        color: '#000000'
+                    },
+                    borderWidth: 2,
+                    shadow: true
+                },
+                edges: {
+                    width: 2,
+                    font: {
+                        size: 12,
+                        color: '#000000',
+                        align: 'middle'
+                    },
+                    arrows: {
+                        to: {enabled: true, scaleFactor: 1}
+                    },
+                    smooth: {
+                        type: 'continuous',
+                        forceDirection: 'none'
+                    },
+                    shadow: true
+                },
+                physics: {
+                    enabled: true,
+                    solver: 'forceAtlas2Based',
+                    forceAtlas2Based: {
+                        gravitationalConstant: -50,
+                        centralGravity: 0.01,
+                        springLength: 100,
+                        springConstant: 0.08
+                    },
+                    stabilization: {
+                        enabled: true,
+                        iterations: 1000
+                    }
+                },
+                interaction: {
+                    hover: true,
+                    tooltipDelay: 200
+                }
+            };
+
+            try {
+                network = new vis.Network(container, { nodes: new vis.DataSet(), edges: new vis.DataSet() }, options);
+            } catch (error) {
+                console.error('初始化图谱失败:', error);
+                document.getElementById('output').textContent = '错误：初始化图谱失败 - ' + error.message;
+            }
+        });
+
+        // 查询活动
+        function queryActivities() {
+            const name = document.getElementById("entityInput").value;
+            if (!name) {
+                alert("请输入实体名称");
+                return;
+            }
+
+            axios.get(`/kg_analysis/api/activities?name=${encodeURIComponent(name)}`)
+                .then(response => {
+                    const data = response.data;
+                    let output = "";
+                    
+                    // 更新图谱显示
+                    const nodes = new vis.DataSet();
+                    const edges = new vis.DataSet();
+                    
+                    // 添加中心节点（查询的实体）
+                    nodes.add({
+                        id: name,
+                        label: name,
+                        color: '#ff6b6b',
+                        size: 20,
+                        title: '中心实体'
+                    });
+
+                    // 用于跟踪已添加的节点
+                    const addedNodes = new Set([name]);
+
+                    // 检查数据格式
+                    if (!Array.isArray(data)) {
+                        throw new Error('返回数据格式错误：应为数组');
+                    }
+
+                    data.forEach((item, index) => {
+                        if (!item || typeof item !== 'object') {
+                            console.warn(`跳过无效数据项 ${index}`);
+                            return;
+                        }
+
+                        output += `【行为链 ${index + 1}】\n`;
+
+                        // 处理攻击目标
+                        const targets = Array.isArray(item.attack_targets) ? item.attack_targets : [];
+                        if (targets.length > 0) {
+                            output += "攻击目标列表：\n";
+                            targets.forEach((target, targetIndex) => {
+                                if (!target || typeof target !== 'object' || !target.name) {
+                                    console.warn(`跳过无效目标 ${targetIndex}`);
+                                    return;
+                                }
+                                
+                                const targetName = target.name.trim();
+                                if (!targetName) {
+                                    console.warn(`跳过空目标 ${targetIndex}`);
+                                    return;
+                                }
+
+                                output += `- ${targetName}\n`;
+                                
+                                try {
+                                    // 添加目标节点（检查是否已存在）
+                                    if (!addedNodes.has(targetName)) {
+                                        nodes.add({
+                                            id: targetName,
+                                            label: targetName,
+                                            color: '#4ecdc4',
+                                            title: '攻击目标'
+                                        });
+                                        addedNodes.add(targetName);
+                                    }
+                                    
+                                    // 添加边
+                                    edges.add({
+                                        id: `edge_${name}_${targetName}_${index}_${targetIndex}`,
+                                        from: name,
+                                        to: targetName,
+                                        label: target.relation_type || 'Targets',
+                                        arrows: 'to',
+                                        title: target.relation_type || 'Targets'
+                                    });
+                                } catch (error) {
+                                    console.error(`添加节点或边失败: ${error.message}`);
+                                }
+                            });
+                        } else {
+                            output += "无攻击目标\n";
+                        }
+
+                        // 处理攻击关系
+                        const relations = Array.isArray(item.attack_relations) ? item.attack_relations : [];
+                        if (relations.length > 0) {
+                            output += "攻击关系：\n";
+                            relations.forEach((rel, relIndex) => {
+                                if (!rel || typeof rel !== 'object') {
+                                    console.warn(`跳过无效关系 ${relIndex}`);
+                                    return;
+                                }
+
+                                output += `- 类型：${rel.type || '未知'}\n`;
+                                output += `  威胁评分：${rel.threat_score || 0}\n`;
+                            });
+                        }
+
+                        output += "\n";
+                    });
+
+                    try {
+                        // 更新图谱
+                        network.setData({ nodes, edges });
+                        document.getElementById("output").textContent = output;
+                    } catch (error) {
+                        console.error('更新图谱失败:', error);
+                        document.getElementById("output").textContent = "更新图谱失败：" + error.message;
+                    }
+                })
+                .catch(error => {
+                    console.error('请求失败:', error);
+                    document.getElementById("output").textContent = "请求失败：" + (error.response ? error.response.data : error.message);
+                });
+        }
+
+        // 查询攻击链
+        function queryAttackChain() {
+            const name = document.getElementById("entityInput").value;
+            if (!name) {
+                alert("请输入实体名称");
+                return;
+            }
+            
+            axios.get(`/kg_analysis/api/attack-chain?name=${encodeURIComponent(name)}`)
+                .then(response => {
+                    const data = response.data;
+                    let output = "";
+                    
+                    // 更新图谱显示
+                    const nodes = new vis.DataSet();
+                    const edges = new vis.DataSet();
+                    
+                    // 添加中心节点
+                    nodes.add({
+                        id: name,
+                        label: name,
+                        color: '#ff6b6b',
+                        size: 20,
+                        title: '中心实体'
+                    });
+
+                    data.forEach((chain, index) => {
+                        output += `【攻击链 ${index + 1}】\n`;
+                        output += `路径：${chain.path}\n`;
+                        output += `威胁评分：${chain.score}\n\n`;
+
+                        // 处理攻击链节点
+                        if (!chain.path) return; // 跳过无效路径
+                        
+                        const pathNodes = chain.path.split(" → ").filter(node => node && node.trim()); // 过滤空节点
+                        let prevNode = name;
+
+                        pathNodes.forEach((node, nodeIndex) => {
+                            if (node === name) return; // 跳过中心节点
+                            if (!node.trim()) return; // 跳过空节点
+
+                            const nodeId = `node_${index}_${nodeIndex}`;
+                            nodes.add({
+                                id: nodeId,
+                                label: node,
+                                color: '#ffd93d',
+                                title: '攻击步骤'
+                            });
+
+                            // 获取关系类型
+                            const relationType = chain.relation_types && chain.relation_types[nodeIndex] 
+                                ? chain.relation_types[nodeIndex] 
+                                : 'Next';
+
+                            edges.add({
+                                id: `edge_${prevNode}_${nodeId}_${index}_${nodeIndex}`,
+                                from: prevNode,
+                                to: nodeId,
+                                label: relationType,
+                                arrows: 'to',
+                                title: relationType
+                            });
+
+                            prevNode = nodeId;
+                        });
+                    });
+
+                    // 更新图谱
+                    network.setData({ nodes, edges });
+                    document.getElementById("output").textContent = output;
+                })
+                .catch(error => {
+                    console.error('请求失败:', error);
+                    document.getElementById("output").textContent = "请求失败：" + (error.response ? error.response.data : error.message);
+                });
+        }
+
+        // 查询地理分布
+        function queryGeoMap() {
+            const name = document.getElementById("entityInput").value;
+            if (!name) {
+                alert("请输入实体名称");
+                return;
+            }
+            
+            axios.get(`/kg_analysis/api/geo-map?name=${encodeURIComponent(name)}`)
+                .then(response => {
+                    const data = response.data;
+                    let output = "";
+                    
+                    // 更新图谱显示
+                    const nodes = new vis.DataSet();
+                    const edges = new vis.DataSet();
+                    
+                    // 添加中心节点
+                    nodes.add({
+                        id: name,
+                        label: name,
+                        color: '#ff6b6b',
+                        size: 20,
+                        title: '中心实体'
+                    });
+
+                        data.forEach((item, index) => {
+                            if (!item || typeof item !== 'object') {
+                                console.warn(`跳过无效数据项 ${index}`);
+                                return;
+                            }
+
+                        const { threat, location, relation_type } = item;
+                        if (!threat || !location) {
+                            console.warn(`跳过无效数据 ${index}`);
+                                return;
+                            }
+
+                        // 添加位置节点
+                                nodes.add({
+                            id: location,
+                                    label: location,
+                                    color: '#4ecdc4',
+                                    title: '地理位置'
+                                });
+
+                            // 添加边
+                            edges.add({
+                                from: name,
+                            to: location,
+                            label: relation_type,
+                                arrows: 'to',
+                            title: relation_type
+                        });
+
+                        // 添加到输出文本
+                        output += `【地理位置 ${index + 1}】\n`;
+                        output += `位置: ${location}\n`;
+                        output += `关联威胁: ${threat}\n\n`;
+                        });
+
+                    // 更新图谱
+                    network.setData({ nodes, edges });
+                    document.getElementById("output").textContent = output;
+                })
+                .catch(error => {
+                    console.error('请求失败:', error);
+                    document.getElementById("output").textContent = "请求失败：" + (error.response ? error.response.data : error.message);
+                });
+        }
+
+        // 查询攻击者网络
+        function queryAttackerNetwork() {
+            const name = document.getElementById("entityInput").value;
+            if (!name) {
+                alert("请输入实体名称");
+                return;
+            }
+            
+            axios.get(`/kg_analysis/api/attacker-network?name=${encodeURIComponent(name)}`)
+                .then(response => {
+                    const responseData = response.data;
+                    console.log("API返回数据:", responseData);
+                    let output = "";
+                    
+                    // 创建节点和边的数据数组
+                    const nodeData = [];
+                    const edgeData = [];
+                    
+                    // 添加中心节点
+                    nodeData.push({
+                        id: name,
+                        label: name,
+                        color: '#ff6b6b',
+                        size: 20,
+                        title: '中心实体'
+                    });
+                    console.log("添加中心节点:", name);
+
+                    // 处理数据
+                    if (Array.isArray(responseData)) {
+                        responseData.forEach((item, index) => {
+                            if (!item || typeof item !== 'object') {
+                                console.warn("跳过无效数据项:", item);
+                                return;
+                            }
+                            
+                            const source = item.source;
+                            const target = item.target;
+                            const relationType = item.relation_type;
+                            
+                            if (!source || !target) {
+                                console.warn("跳过无效关系:", item);
+                                return;
+                            }
+
+                            console.log(`处理关系 ${index + 1}:`, { source, target, relationType });
+
+                            // 添加目标节点
+                            const targetId = `node_${index}_${target}`;
+                            nodeData.push({
+                                id: targetId,
+                                label: target,
+                                color: '#ffd93d',
+                                title: '目标实体'
+                            });
+                            console.log("添加目标节点:", targetId);
+
+                            // 添加边
+                            const edge = {
+                                id: `edge_${source}_${targetId}_${index}`,
+                                from: source,
+                                to: targetId,
+                                label: relationType,
+                                arrows: 'to',
+                                title: relationType,
+                                width: 2,
+                                color: {
+                                    color: '#666666',
+                                    highlight: '#ff0000',
+                                    hover: '#ff0000'
+                                },
+                                smooth: {
+                                    type: 'continuous',
+                                    forceDirection: 'none'
+                                }
+                            };
+                            edgeData.push(edge);
+                            console.log("添加边:", edge);
+
+                            // 更新输出文本
+                            output += `【关联 ${index + 1}】\n`;
+                            output += `来源：${source}\n`;
+                            output += `目标：${target}\n`;
+                            output += `关系类型：${relationType}\n\n`;
+                        });
+                    }
+
+                    console.log("最终节点数据:", nodeData);
+                    console.log("最终边数据:", edgeData);
+
+                    // 创建数据集
+                    const nodes = new vis.DataSet(nodeData);
+                    const edges = new vis.DataSet(edgeData);
+
+                    // 配置图谱选项
+                    const options = {
+                        nodes: {
+                            shape: 'dot',
+                            size: 16,
+                            font: {
+                                size: 12,
+                                color: '#000000'
+                            },
+                            borderWidth: 2,
+                            shadow: true
+                        },
+                        edges: {
+                            width: 2,
+                            font: {
+                                size: 12,
+                                color: '#000000',
+                                align: 'middle'
+                            },
+                            arrows: {
+                                to: {enabled: true, scaleFactor: 1}
+                            },
+                            smooth: {
+                                type: 'continuous',
+                                forceDirection: 'none'
+                            },
+                            shadow: true
+                        },
+                        physics: {
+                            enabled: true,
+                            solver: 'forceAtlas2Based',
+                            forceAtlas2Based: {
+                                gravitationalConstant: -50,
+                                centralGravity: 0.01,
+                                springLength: 100,
+                                springConstant: 0.08
+                            },
+                            stabilization: {
+                                enabled: true,
+                                iterations: 1000
+                            }
+                        },
+                        interaction: {
+                            hover: true,
+                            tooltipDelay: 200
+                        }
+                    };
+
+                    // 创建图谱
+                    const container = document.getElementById('graph-container');
+                    const data = {
+                        nodes: nodes,
+                        edges: edges
+                    };
+                    console.log("图谱数据:", data);
+                    network = new vis.Network(container, data, options);
+                    document.getElementById("output").textContent = output;
+                })
+                .catch(error => {
+                    console.error('请求失败:', error);
+                    document.getElementById("output").textContent = "请求失败：" + (error.response ? error.response.data : error.message);
+                });
+        }
+    </script>
+</body>
+</html>

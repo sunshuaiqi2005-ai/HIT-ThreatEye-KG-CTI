@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>知识图谱威胁分析系统</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 40px; background: #f9f9f9; }
+        h1 { color: #2c3e50; }
+        input, button {
+            padding: 8px 12px;
+            font-size: 14px;
+            margin: 4px;
+        }
+        button {
+            color: white;
+            border: none;
+            cursor: pointer;
+            width: 200px;
+        }
+        .btn-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .blue { background-color: #3498db; }
+        .green { background-color: #2ecc71; }
+        .yellow { background-color: #f1c40f; }
+        .pink { background-color: #e91e63; }
+        pre {
+            background: #eee;
+            padding: 16px;
+            border-radius: 6px;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>📊 知识图谱威胁分析系统</h1>
+
+    <div>
+        <input id="entityInput" placeholder="请输入实体名称，如 Instagram Account Hackers" style="width: 360px;" />
+    </div>
+
+    <div class="btn-container">
+        <button class="blue" onclick="queryActivities()">查询行为链</button>
+        <button class="green" onclick="queryAttackChain()">查询攻击路径</button>
+        <button class="yellow" onclick="loadData('/api/attacker-network')">攻击者网络</button>
+        <button class="pink" onclick="loadData('/api/geo-map')">地理分布</button>
+    </div>
+
+    <pre id="output">点击按钮以查看分析结果</pre>
+
+    <script>
+        function queryActivities() {
+            const name = document.getElementById("entityInput").value;
+            if (!name) {
+                alert("请输入实体名称");
+                return;
+            }
+            loadData(`/api/activities?name=${encodeURIComponent(name)}`);
+        }
+
+        function queryAttackChain() {
+            const name = document.getElementById("entityInput").value;
+            if (!name) {
+                alert("请输入实体名称");
+                return;
+            }
+            loadData(`/api/attack-chain?name=${encodeURIComponent(name)}`);
+        }
+
+        function loadData(endpoint) {
+            axios.get(endpoint)
+                .then(response => {
+                    document.getElementById("output").textContent = JSON.stringify(response.data, null, 2);
+                })
+                .catch(error => {
+                    document.getElementById("output").textContent = "请求失败：" + error;
+                });
+        }
+    </script>
+</body>
+</html>

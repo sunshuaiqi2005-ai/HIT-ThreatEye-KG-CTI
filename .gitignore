@@ -1,0 +1,27 @@
+.venv/
+node_modules/
+__pycache__/
+.idea/
+
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Nested repositories and local caches
+**/.git/
+**/.venv/
+**/node_modules/
+**/__pycache__/
+**/.idea/
+
+# Removed local data/results
+威胁情报库/input/
+威胁情报库/威胁情报/
+图谱模块/图谱分析模块/output/
+图谱模块/图谱分析模块/output1/
+图谱模块/图谱分析模块/*_output/
+图谱模块/图谱分析模块/实验数据/
+防御规则生成/converter/CREATED_IOCs/
+界面UI/system/output/
+界面UI/system/uploads/

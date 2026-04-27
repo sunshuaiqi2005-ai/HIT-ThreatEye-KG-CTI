@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}语料生成{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="page-header">
+        <h2>语料生成</h2>
+        <div class="header-buttons">
+            <a href="/data_processing" class="btn btn-outline-primary">
+                <i class="bi bi-file-earmark-text"></i> 数据处理
+            </a>
+            <a href="/" class="btn btn-outline-secondary">
+                <i class="bi bi-house"></i> 返回主页
+            </a>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- 左侧操作面板 -->
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <ul class="nav nav-tabs card-header-tabs">
+                        <li class="nav-item">
+                            <a class="nav-link active" data-bs-toggle="tab" href="#upload-tab">文件上传</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" data-bs-toggle="tab" href="#batch-tab">批量处理</a>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content">
+                        <!-- 文件上传表单 -->
+                        <div class="tab-pane fade show active" id="upload-tab">
+                            <div class="upload-area" id="dropZone">
+                                <i class="bi bi-cloud-upload"></i>
+                                <h5>拖拽文件到此处或点击上传</h5>
+                                <p class="text-muted">支持 .pdf, .html, .txt 文件</p>
+                                <input type="file" id="fileInput" style="display: none" accept=".pdf,.html,.txt">
+                            </div>
+                            <div class="form-group">
+                                <label for="fileInfo">文件信息</label>
+                                <div class="preview-area" id="fileInfo">
+                                    <div class="text-center text-muted">
+                                        <i class="bi bi-file-earmark"></i>
+                                        <p class="mb-0">未选择文件</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="outputPath">输出文件路径</label>
+                                <input type="text" class="form-control" id="outputPath" placeholder="例如：output/alpaca_dataset.json">
+                            </div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="generateCorpus()">开始生成</button>
+                        </div>
+                        
+                        <!-- 批量处理表单 -->
+                        <div class="tab-pane fade" id="batch-tab">
+                            <div class="form-group">
+                                <label for="directoryPath">目录路径</label>
+                                <input type="text" class="form-control" id="directoryPath" placeholder="请输入要处理的目录路径">
+                            </div>
+                            <div class="form-group mt-3">
+                                <label for="outputPath">输出文件路径</label>
+                                <input type="text" class="form-control" id="outputPath" placeholder="例如：output/alpaca_dataset.json">
+                            </div>
+                            <button class="btn btn-primary w-100 mt-3" onclick="generateCorpusBatch()">开始批量生成</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 处理进度 -->
+            <div class="card">
+                <div class="card-header">处理进度</div>
+                <div class="card-body">
+                    <div class="progress mb-3">
+                        <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                    </div>
+                    <div id="progressText">等待处理...</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 右侧结果显示 -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">生成结果</h5>
+                    <button class="btn btn-sm btn-outline-primary" onclick="copyOutput()">
+                        <i class="bi bi-clipboard"></i> 复制
+                    </button>
+                </div>
+                <div class="card-body">
+                    <pre id="outputContent" class="bg-light p-3 rounded" style="max-height: 600px; overflow-y: auto;"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .upload-area {
+        border: 2px dashed #ddd;
+        border-radius: 4px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    .upload-area:hover {
+        border-color: #0d6efd;
+        background-color: #f8f9fa;
+    }
+    .upload-area i {
+        font-size: 2rem;
+        color: #6c757d;
+        margin-bottom: 10px;
+    }
+    .error-message {
+        color: #dc3545;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+    .success-message {
+        color: #28a745;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        padding: 10px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 文件上传相关
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    
+    // 点击上传区域触发文件选择
+    dropZone.addEventListener('click', () => {
+        fileInput.click();
+    });
+    
+    // 处理文件拖放
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#0d6efd';
+    });
+    
+    dropZone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#ddd';
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dropZone.style.borderColor = '#ddd';
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleFile(files[0]);
+            fileInput.files = files;  // 更新 fileInput 的文件
+        }
+    });
+
+    // 处理文件选择
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleFile(e.target.files[0]);
+        } else {
+            handleFile(null);  // 如果没有选择文件，显示默认状态
+        }
+    });
+    
+    // 处理文件信息
+    function handleFile(file) {
+        if (!file) {
+            fileInfo.innerHTML = `
+                <div class="text-center text-muted">
+                    <i class="bi bi-file-earmark"></i>
+                    <p class="mb-0">未选择文件</p>
+                </div>
+            `;
+            return;
+        }
+
+        const fileSize = formatFileSize(file.size);
+        const fileType = file.type || '未知类型';
+        const fileName = file.name;
+        
+        fileInfo.innerHTML = `
+            <div class="d-flex align-items-center mb-2">
+                <i class="bi bi-file-earmark-text fs-4 me-2"></i>
+                <div>
+                    <h6 class="mb-1">${fileName}</h6>
+                    <small class="text-muted">
+                        大小: ${fileSize}<br>
+                        类型: ${fileType}
+                    </small>
+                </div>
+            </div>
+        `;
+    }
+
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // 复制输出内容
+    function copyOutput() {
+        const outputContent = document.getElementById('outputContent');
+        const text = outputContent.textContent;
+        
+        navigator.clipboard.writeText(text).then(() => {
+            // 显示复制成功提示
+            const button = document.querySelector('.card-header .btn');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="bi bi-check"></i> 已复制';
+            button.classList.remove('btn-outline-primary');
+            button.classList.add('btn-success');
+            
+            // 2秒后恢复按钮状态
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-primary');
+            }, 2000);
+        }).catch(err => {
+            console.error('复制失败:', err);
+            alert('复制失败，请手动复制');
+        });
+    }
+
+    // 生成语料
+    async function generateCorpus() {
+        const file = fileInput.files[0];
+        if (!file) {
+            alert('请先选择文件');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            // 显示加载状态
+            const outputContent = document.getElementById('outputContent');
+            outputContent.textContent = '正在生成语料，请稍候...';
+
+            const response = await fetch('/data_processing/api/generate-corpus', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // 格式化输出内容
+                const formattedOutput = JSON.stringify(result.data, null, 2);
+                outputContent.textContent = formattedOutput;
+            } else {
+                outputContent.textContent = `错误: ${result.error}`;
+            }
+        } catch (error) {
+            console.error('生成语料时出错:', error);
+            document.getElementById('outputContent').textContent = `错误: ${error.message}`;
+        }
+    }
+
+    // 批量生成语料
+    async function generateCorpusBatch() {
+        const directoryPath = document.getElementById('directoryPath').value;
+        const outputPath = document.getElementById('outputPath').value;
+
+        if (!directoryPath) {
+            alert('请输入目录路径');
+            return;
+        }
+
+        if (!outputPath) {
+            alert('请输入输出文件路径');
+            return;
+        }
+
+        try {
+            updateProgress(0, '开始批量生成语料...');
+
+            const response = await axios.post('/data_processing/api/generate-corpus', {
+                directory: directoryPath,
+                output_path: outputPath
+            });
+
+            if (response.data.error) {
+                throw new Error(response.data.error);
+            }
+
+            updateProgress(100, '批量生成完成！');
+            displayResult(response.data);
+        } catch (error) {
+            console.error('批量生成失败:', error);
+            updateProgress(0, '生成失败: ' + error.message);
+            displayError(error.message);
+        }
+    }
+
+    // 更新进度
+    function updateProgress(percent, text) {
+        const progressBar = document.querySelector('.progress-bar');
+        const progressText = document.getElementById('progressText');
+        progressBar.style.width = `${percent}%`;
+        progressText.textContent = text;
+    }
+
+    // 显示结果
+    function displayResult(data) {
+        const outputContent = document.getElementById('corpusOutput');
+        if (data.data && Array.isArray(data.data)) {
+            // 格式化显示每个问答对
+            const formattedContent = data.data.map((item, index) => {
+                return `问答对 ${index + 1}:\n问题：${item.instruction}\n答案：${item.output}\n`;
+            }).join('\n');
+            outputContent.innerHTML = `<pre class="result-content">${formattedContent}</pre>`;
+        } else {
+            outputContent.innerHTML = `<pre class="result-content">${JSON.stringify(data.data, null, 2)}</pre>`;
+        }
+    }
+
+    // 显示错误
+    function displayError(message) {
+        document.getElementById('corpusOutput').innerHTML = `<div class="error-message">${message}</div>`;
+    }
+</script>
+{% endblock %} 
